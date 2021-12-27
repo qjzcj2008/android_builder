@@ -19,7 +19,7 @@ jobs:
       - name: Clone project
         run: git clone --depth=1 ${{ steps.get-project.outputs.PROJECT }} project
       - name: Clone third-party
-        working-directory: ./projectapp/src/third-party/
+        working-directory: ./project/app/src/third-party/
         run: git clone --depth=1 https://github.com/hexise/jaudiotagger-android.git
       - name: Build APlayer app
         working-directory: ./project
