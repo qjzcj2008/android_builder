@@ -1,0 +1,49 @@
+name: Aplayer2.0_build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Checkout android_builder 本仓库（可选，但保留，便于后续扩展/存脚本）
+      - name: Checkout android_builder
+        uses: actions/checkout@v4
+
+      # 2) 按“最前面 workflow”的环境：JDK 17 + temurin + Gradle cache
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      # 3) Clone APlayer 指定分支（并带 submodules，行为对齐）
+      - name: Clone APlayer branch
+        run: |
+          git clone --depth=1 --branch "2.0-lyric-order-text-fix" --recurse-submodules \
+            https://github.com/qjzcj2008/APlayer.git project
+
+      # 4) （保留你的逻辑）Clone third-party
+      #    注意：如果 APlayer 这个分支不存在该目录，会失败；如不需要可删掉本 step
+      #- name: Clone third-party
+      #  working-directory: ./project/app/src/third-party/
+      #  run: |
+      #    git clone --depth=1 https://github.com/hexise/jaudiotagger-android.git
+
+      # 5) Build（参照最前面 workflow 的构建方式，你可以二选一）
+      #    A. 你之前的方式：assembleDebug（更通用）
+      - name: Build APlayer app (Debug)
+        working-directory: ./project
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      # 6) 上传构建产物：对齐到“上传 outputs”的习惯（你也可以只传 apk）
+      - name: Upload outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot
+          path: project/app/build/outputs/
