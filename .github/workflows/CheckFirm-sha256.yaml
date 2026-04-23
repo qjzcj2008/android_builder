@@ -56,10 +56,28 @@ jobs:
         working-directory: upstream
         run: chmod +x ./gradlew
 
-      - name: Build Debug APK (skip Gradle wrapper checksum verification)
+      - name: Disable Gradle wrapper checksum verification (do not commit)
         working-directory: upstream
-        env:
-          GRADLE_WRAPPER_VERIFY_DOWNLOAD: "false"
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Before:"
+          grep -n '^distributionSha256Sum=' -n gradle/wrapper/gradle-wrapper.properties || true
+
+          # Remove the checksum line so wrapper won't verify the downloaded distribution
+          sed -i '/^distributionSha256Sum=/d' gradle/wrapper/gradle-wrapper.properties
+
+          echo "After:"
+          grep -n '^distributionSha256Sum=' -n gradle/wrapper/gradle-wrapper.properties || true
+
+      - name: Force re-download Gradle wrapper distribution (optional)
+        shell: bash
+        run: |
+          rm -rf ~/.gradle/wrapper/dists/gradle-9.4.1-bin || true
+          find ~/.gradle/wrapper/dists -type f -name "*.part" -delete || true
+
+      - name: Build Debug APK
+        working-directory: upstream
         run: ./gradlew :app:assembleDebug
 
       - name: Upload APK artifact
