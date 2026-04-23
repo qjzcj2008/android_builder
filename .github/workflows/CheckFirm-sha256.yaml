@@ -1,0 +1,68 @@
+name: Build upstream CheckFirm (debug apk)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout upstream repo (ducthoe/CheckFirm@main)
+        uses: actions/checkout@v4
+        with:
+          repository: ducthoe/CheckFirm
+          ref: main
+          path: upstream
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create ephemeral debug keystore + keystore.properties
+        shell: bash
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+
+          keytool -genkeypair \
+            -v \
+            -keystore ci-debug.jks \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=CI Debug,O=CI,C=US"
+
+          cat > keystore.properties <<'EOF'
+          storeFile=ci-debug.jks
+          storePassword=android
+          keyAlias=androiddebugkey
+          keyPassword=android
+          EOF
+
+      - name: Make gradlew executable
+        working-directory: upstream
+        run: chmod +x ./gradlew
+
+      - name: Build Debug APK
+        working-directory: upstream
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CheckFirm-debug-apk
+          path: upstream/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
