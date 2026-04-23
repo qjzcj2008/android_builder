@@ -56,25 +56,48 @@ jobs:
         working-directory: upstream
         run: chmod +x ./gradlew
 
-      - name: Disable Gradle wrapper checksum verification (do not commit)
+      - name: Disable Gradle wrapper checksum verification (remove distributionSha256Sum; do not commit)
         working-directory: upstream
         shell: bash
         run: |
           set -euo pipefail
-          echo "Before:"
-          grep -n '^distributionSha256Sum=' -n gradle/wrapper/gradle-wrapper.properties || true
+          FILE="gradle/wrapper/gradle-wrapper.properties"
 
-          # Remove the checksum line so wrapper won't verify the downloaded distribution
-          sed -i '/^distributionSha256Sum=/d' gradle/wrapper/gradle-wrapper.properties
+          echo "== Before =="
+          grep -n '^distributionUrl=' "$FILE" || true
+          grep -n '^distributionSha256Sum=' "$FILE" || true
 
-          echo "After:"
-          grep -n '^distributionSha256Sum=' -n gradle/wrapper/gradle-wrapper.properties || true
+          sed -i '/^distributionSha256Sum=/d' "$FILE"
 
-      - name: Force re-download Gradle wrapper distribution (optional)
+          echo "== After =="
+          grep -n '^distributionUrl=' "$FILE" || true
+          grep -n '^distributionSha256Sum=' "$FILE" || true
+
+      - name: Force re-download Gradle wrapper distribution (clean wrapper cache)
         shell: bash
         run: |
+          set -euo pipefail
           rm -rf ~/.gradle/wrapper/dists/gradle-9.4.1-bin || true
           find ~/.gradle/wrapper/dists -type f -name "*.part" -delete || true
+
+      - name: Nuke Firebase (remove google-services plugin and firebase deps; do not commit)
+        shell: bash
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          FILE="app/build.gradle.kts"
+
+          echo "== Before (matching lines) =="
+          grep -nE 'libs\.plugins\.google\.gms|libs\.bundles\.firebases' "$FILE" || true
+
+          # Remove: alias(libs.plugins.google.gms)
+          perl -i -0pe 's/^[ \t]*alias\(libs\.plugins\.google\.gms\)\s*\R//mg' "$FILE"
+
+          # Remove: implementation(libs.bundles.firebases)
+          perl -i -0pe 's/^[ \t]*implementation\(libs\.bundles\.firebases\)\s*\R//mg' "$FILE"
+
+          echo "== After (matching lines) =="
+          grep -nE 'libs\.plugins\.google\.gms|libs\.bundles\.firebases' "$FILE" || true
 
       - name: Build Debug APK
         working-directory: upstream
