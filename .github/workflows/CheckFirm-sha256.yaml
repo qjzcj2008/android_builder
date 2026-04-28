@@ -99,6 +99,23 @@ jobs:
           echo "== After (matching lines) =="
           grep -nE 'libs\.plugins\.google\.gms|libs\.bundles\.firebases' "$FILE" || true
 
+      - name: Nuke OneUI Spinner (replace custom view with TextView; do not commit)
+        shell: bash
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+
+          FILE="oneui/src/spinner/res/layout/layout_oneui_spinner_item.xml"
+
+          echo "== Before (line 1) =="
+          sed -n '1p' "$FILE"
+
+          # Replace only the opening tag on line 1
+          sed -i '1s#^<com\.bluesion\.oneui\.spinner\.OneUISpinnerTextView xmlns:android="http://schemas\.android\.com/apk/res/android"#<TextView xmlns:android="http://schemas.android.com/apk/res/android"#' "$FILE"
+
+          echo "== After (line 1) =="
+          sed -n '1p' "$FILE"
+
       - name: Build Debug APK
         working-directory: upstream
         run: ./gradlew :app:assembleDebug
