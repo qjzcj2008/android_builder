@@ -34,9 +34,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Generate keystore under app/ so Gradle's file("ci-debug.jks") resolves correctly
           keytool -genkeypair \
             -v \
-            -keystore ci-debug.jks \
+            -keystore app/ci-debug.jks \
             -storepass android \
             -keypass android \
             -alias androiddebugkey \
