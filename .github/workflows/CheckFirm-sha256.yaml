@@ -81,24 +81,24 @@ jobs:
           rm -rf ~/.gradle/wrapper/dists/gradle-9.4.1-bin || true
           find ~/.gradle/wrapper/dists -type f -name "*.part" -delete || true
 
-      - name: Nuke Firebase (remove google-services plugin and firebase deps; do not commit)
-        shell: bash
-        working-directory: upstream
-        run: |
-          set -euo pipefail
-          FILE="app/build.gradle.kts"
-
-          echo "== Before (matching lines) =="
-          grep -nE 'libs\.plugins\.google\.gms|libs\.bundles\.firebases' "$FILE" || true
-
-          # Remove: alias(libs.plugins.google.gms)
-          perl -i -0pe 's/^[ \t]*alias\(libs\.plugins\.google\.gms\)\s*\R//mg' "$FILE"
-
-          # Remove: implementation(libs.bundles.firebases)
-          perl -i -0pe 's/^[ \t]*implementation\(libs\.bundles\.firebases\)\s*\R//mg' "$FILE"
-
-          echo "== After (matching lines) =="
-          grep -nE 'libs\.plugins\.google\.gms|libs\.bundles\.firebases' "$FILE" || true
+      #- name: Nuke Firebase (remove google-services plugin and firebase deps; do not commit)
+      #  shell: bash
+      #  working-directory: upstream
+      #  run: |
+      #    set -euo pipefail
+      #    FILE="app/build.gradle.kts"
+#
+      #    echo "== Before (matching lines) =="
+      #    grep -nE 'libs\.plugins\.google\.gms|libs\.bundles\.firebases' "$FILE" || true
+#
+      #    # Remove: alias(libs.plugins.google.gms)
+      #    perl -i -0pe 's/^[ \t]*alias\(libs\.plugins\.google\.gms\)\s*\R//mg' "$FILE"
+#
+      #    # Remove: implementation(libs.bundles.firebases)
+      #    perl -i -0pe 's/^[ \t]*implementation\(libs\.bundles\.firebases\)\s*\R//mg' "$FILE"
+#
+      #    echo "== After (matching lines) =="
+      #    grep -nE 'libs\.plugins\.google\.gms|libs\.bundles\.firebases' "$FILE" || true
 
       #- name: Nuke OneUI Spinner (replace custom view with TextView; do not commit)
       #  shell: bash
@@ -116,6 +116,53 @@ jobs:
 #
       #    echo "== After (line 1) =="
       #    sed -n '1p' "$FILE"
+
+      - name: Create dummy google-services.json (debug only; do not commit)
+        shell: bash
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+
+          # Put it in all common locations the plugin searches
+          mkdir -p app/src/debug
+
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "123456789012",
+              "project_id": "dummy-project",
+              "storage_bucket": "dummy-project.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789012:android:0123456789abcdef012345",
+                  "android_client_info": {
+                    "package_name": "com.illusion.checkfirm"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyDummyDummyDummyDummyDummyDummyDummy"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+          # Also place a copy under src/debug/ for variants that prefer it
+          cp app/google-services.json app/src/debug/google-services.json
+
+          echo "Dummy google-services.json created:"
+          ls -la app/google-services.json app/src/debug/google-services.json
 
       - name: Patch oneui Kotlin sourceSets (temporary; do not commit)
         shell: bash
