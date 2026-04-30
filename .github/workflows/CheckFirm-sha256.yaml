@@ -117,21 +117,68 @@ jobs:
       #    echo "== After (line 1) =="
       #    sed -n '1p' "$FILE"
 
-      - name: Patch oneui/build.gradle.kts plugins block (do not commit)
+      - name: Patch oneui Kotlin sourceSets (temporary; do not commit)
         shell: bash
         working-directory: upstream
         run: |
           set -euo pipefail
+
           FILE="oneui/build.gradle.kts"
 
-          echo "== Before (plugins block) =="
-          awk 'f{print} /^plugins[[:space:]]*\{/ {f=1; print} f && /^\}/ {f=0; exit}' "$FILE" || true
+          echo "Patching $FILE ..."
 
-          # Replace the whole `plugins { ... }` block with the desired snippet
-          perl -i -0pe 's/plugins\s*\{.*?\}/plugins {\n    alias(libs.plugins.android.library)\n    id("org.jetbrains.kotlin.android")\n}\n/s' "$FILE"
+          # 1) 确保没有显式 kotlin android plugin（AGP 9 会报错）
+          #    这里不强行改 plugins 块，只做删除（如果你之前加过）
+          sed -i '/org\.jetbrains\.kotlin\.android/d' "$FILE"
 
-          echo "== After (plugins block) =="
-          awk 'f{print} /^plugins[[:space:]]*\{/ {f=1; print} f && /^\}/ {f=0; exit}' "$FILE" || true
+          # 2) 在 sourceSets/main 里注入 kotlin.srcDirs（如果尚未存在）
+          #    通过在 "java { ... }" 代码块后面追加一段 kotlin.srcDirs(...)
+          if ! grep -q 'kotlin\.srcDirs' "$FILE"; then
+            perl -0777 -i -pe 's/(getByName\("main"\)\s*\{\s*.*?java\s*\{\s*.*?\}\s*)/\1\n\n            kotlin.srcDirs(\n                "src\/divider\/kotlin",\n                "src\/edittext\/kotlin",\n                "src\/spinner\/kotlin",\n                "src\/switch\/kotlin",\n                "src\/tab\/kotlin",\n            )\n/sms' "$FILE"
+          fi
+
+          echo "==== Patched snippet (sourceSets) ===="
+          grep -n 'sourceSets' -n "$FILE" -A80 | sed -n '1,120p' || true
+
+      - name: Fallback - copy oneui kotlin sources into src/main/kotlin (temporary; do not commit)
+        shell: bash
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+
+          # 如果 Kotlin 仍然显示 NO-SOURCE，则把分散目录同步到标准目录
+          # 注意：这里用 compileDebugKotlin 来探测是否有源码被识别
+          if ./gradlew :oneui:compileDebugKotlin --dry-run | grep -q 'compileDebugKotlin'; then
+            # 运行一次真正的 task 并捕获输出，用于判断 NO-SOURCE
+            set +e
+            OUT="$(./gradlew :oneui:compileDebugKotlin --info 2>&1)"
+            CODE=$?
+            set -e
+
+            echo "$OUT" | tail -n 200
+
+            if echo "$OUT" | grep -q 'NO-SOURCE'; then
+              echo "Kotlin sources still not detected; copying to oneui/src/main/kotlin ..."
+
+              mkdir -p oneui/src/main/kotlin
+
+              rsync -a oneui/src/divider/kotlin/ oneui/src/main/kotlin/ || true
+              rsync -a oneui/src/edittext/kotlin/ oneui/src/main/kotlin/ || true
+              rsync -a oneui/src/spinner/kotlin/ oneui/src/main/kotlin/ || true
+              rsync -a oneui/src/switch/kotlin/ oneui/src/main/kotlin/ || true
+              rsync -a oneui/src/tab/kotlin/ oneui/src/main/kotlin/ || true
+
+              echo "Copied. Re-running kotlin compile to confirm..."
+              ./gradlew :oneui:compileDebugKotlin --info
+            else
+              echo "Kotlin sources detected after patch; no copy needed."
+            fi
+
+            # 如果 compileDebugKotlin 本身就失败了（非 NO-SOURCE），仍然返回失败
+            if [ $CODE -ne 0 ] && ! echo "$OUT" | grep -q 'NO-SOURCE'; then
+              exit $CODE
+            fi
+          fi
 
       - name: Build Debug APK
         working-directory: upstream
