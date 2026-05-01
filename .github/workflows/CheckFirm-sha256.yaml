@@ -169,16 +169,16 @@ jobs:
         working-directory: upstream
         run: |
           set -euo pipefail
-      
+
           FILE="app/src/main/AndroidManifest.xml"
-      
+
           if [ ! -f "$FILE" ]; then
             echo "::error::AndroidManifest.xml not found at $FILE"
             exit 1
           fi
-      
+
           echo "Patching $FILE to disable FirebaseInitProvider..."
-      
+
           # 1) Ensure tools namespace exists on the <manifest> tag
           if ! grep -q 'xmlns:tools="http://schemas.android.com/tools"' "$FILE"; then
             # Add xmlns:tools to the first <manifest ...> occurrence
@@ -186,43 +186,43 @@ jobs:
             # More reliable: replace only first occurrence
             perl -0777 -i -pe 's/<manifest\b(?![^>]*\bxmlns:tools=)/<manifest xmlns:tools="http:\/\/schemas.android.com\/tools"/' "$FILE"
           fi
-      
+
           # 2) If a FirebaseInitProvider remove-statement already exists, do nothing
           if grep -q 'tools:node="remove"' "$FILE" && grep -q 'com\.google\.firebase\.provider\.FirebaseInitProvider' "$FILE"; then
             echo "FirebaseInitProvider removal already present; skipping."
             exit 0
           fi
-      
+
           # 3) Insert provider removal inside the first <application ...> tag
           perl -0777 -i -pe 's|(<application\b[^>]*>)|$1\n\n        <!-- CI patch: disable Firebase auto-init (no real google-services.json) -->\n        <provider\n            android:name="com.google.firebase.provider.FirebaseInitProvider"\n            android:authorities="${applicationId}.firebaseinitprovider"\n            tools:node="remove" />\n|s' "$FILE"
-      
+
           echo "==== Patched manifest snippet ===="
           # Show a small snippet around <application> and FirebaseInitProvider
           awk 'NR>=1 && NR<=200 {print NR ":" $0}' "$FILE" | sed -n '1,200p' | grep -n -E 'manifest|application|FirebaseInitProvider|tools:' -C 3 || true
-      
-      
-            - name: Patch oneui Kotlin sourceSets (temporary; do not commit)
-              shell: bash
-              working-directory: upstream
-              run: |
-                set -euo pipefail
-      
-                FILE="oneui/build.gradle.kts"
-      
-                echo "Patching $FILE ..."
-      
-                # 1) 确保没有显式 kotlin android plugin（AGP 9 会报错）
-                #    这里不强行改 plugins 块，只做删除（如果你之前加过）
-                sed -i '/org\.jetbrains\.kotlin\.android/d' "$FILE"
-      
-                # 2) 在 sourceSets/main 里注入 kotlin.srcDirs（如果尚未存在）
-                #    通过在 "java { ... }" 代码块后面追加一段 kotlin.srcDirs(...)
-                if ! grep -q 'kotlin\.srcDirs' "$FILE"; then
-                  perl -0777 -i -pe 's/(getByName\("main"\)\s*\{\s*.*?java\s*\{\s*.*?\}\s*)/\1\n\n            kotlin.srcDirs(\n                "src\/divider\/kotlin",\n                "src\/edittext\/kotlin",\n                "src\/spinner\/kotlin",\n                "src\/switch\/kotlin",\n                "src\/tab\/kotlin",\n            )\n/sms' "$FILE"
-                fi
-      
-                echo "==== Patched snippet (sourceSets) ===="
-                grep -n 'sourceSets' -n "$FILE" -A80 | sed -n '1,120p' || true
+
+
+      - name: Patch oneui Kotlin sourceSets (temporary; do not commit)
+        shell: bash
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+
+          FILE="oneui/build.gradle.kts"
+
+          echo "Patching $FILE ..."
+
+          # 1) 确保没有显式 kotlin android plugin（AGP 9 会报错）
+          #    这里不强行改 plugins 块，只做删除（如果你之前加过）
+          sed -i '/org\.jetbrains\.kotlin\.android/d' "$FILE"
+
+          # 2) 在 sourceSets/main 里注入 kotlin.srcDirs（如果尚未存在）
+          #    通过在 "java { ... }" 代码块后面追加一段 kotlin.srcDirs(...)
+          if ! grep -q 'kotlin\.srcDirs' "$FILE"; then
+            perl -0777 -i -pe 's/(getByName\("main"\)\s*\{\s*.*?java\s*\{\s*.*?\}\s*)/\1\n\n            kotlin.srcDirs(\n                "src\/divider\/kotlin",\n                "src\/edittext\/kotlin",\n                "src\/spinner\/kotlin",\n                "src\/switch\/kotlin",\n                "src\/tab\/kotlin",\n            )\n/sms' "$FILE"
+          fi
+
+          echo "==== Patched snippet (sourceSets) ===="
+          grep -n 'sourceSets' -n "$FILE" -A80 | sed -n '1,120p' || true
 
       - name: Fallback - copy oneui kotlin sources into src/main/kotlin (temporary; do not commit)
         shell: bash
